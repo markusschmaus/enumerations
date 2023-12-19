@@ -41,10 +41,10 @@ instance functor.lawful : LawfulFunctor Subtypes where
     rfl
   id_map := by
     intro α a
-    simp only [map_def, Predicate.map_def, id, exists_eq_right]
+    simp only [map_def, Predicate.map_def, id, exists_eq_right']
   comp_map := by
     intros α β γ g h p
-    simp only [map_def, Predicate.map_def, Function.comp_apply, exists_exists_and_eq_and]
+    simp only [map_def, comp_map, Function.comp_apply]
 
 def pure {α : Type u} (a : α) : Subtypes α := Subtypes.mk (Pure.pure a : Predicate α) a <| by
   simp only [Predicate.pure_def]
@@ -79,7 +79,7 @@ theorem bind_predicate {α β : Type u} (f : α → Subtypes β) (s : Subtypes �
 instance monad.lawful : LawfulMonad Subtypes := by
   apply LawfulMonad.mk'
   · intro α a
-    simp only [map_def, Predicate.map_def, id_eq, exists_eq_right]
+    simp only [map_def, Predicate.map_def, id_eq, exists_eq_right']
   · intro α β a f
     simp only [pure_def, Predicate.pure_def, bind_def, Predicate.bind_def, exists_eq_left]
   · intro α β γ a f g
