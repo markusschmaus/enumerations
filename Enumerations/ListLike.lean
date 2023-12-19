@@ -20,7 +20,7 @@ class ClassEquiv (Class : Type u → Type v)
     equiv inst₁ x₁ inst₂ x₂ → equiv inst₂ x₂ inst₃ x₃ →
     equiv inst₁ x₁ inst₃ x₃
 
-structure Def where
+structure Spec where
   Class : Type u → Type v
   equiv : EquivType Class
   refl {imp : Type u} (inst : Class imp) (x : imp) :
@@ -37,50 +37,56 @@ structure Imp (Class : Type u → Type v) : Type (max (u + 1) v) where
   [inst : Class imp]
   value : imp
 
-instance setoid (d : Def) : Setoid (Imp d.Class) where
-  r (x x' : Imp d.Class) := d.equiv x.inst x.value x'.inst x'.value
+instance setoid (spec : Spec) : Setoid (Imp spec.Class) where
+  r (x x' : Imp spec.Class) := spec.equiv x.inst x.value x'.inst x'.value
   iseqv := by
     constructor
     · intro _
-      refine' d.refl _ _
+      refine' spec.refl _ _
     · intro _ _
-      refine' d.symm _ _ _ _
+      refine' spec.symm _ _ _ _
     · intro _ _ _
-      refine' d.trans _ _ _ _ _ _
+      refine' spec.trans _ _ _ _ _ _
 
 end Data
 
-def Data (d : Data.Def.{u, v}) :
+def Data (spec : Data.Spec.{u, v}) :
     Type (max (u + 1) v) :=
-  Quotient (Data.setoid d)
+  Quotient (Data.setoid spec)
 
 namespace Data
 
 set_option checkBinderAnnotations false in
-def lift' (d : Def.{u, v}) {β : Type w}
-    (f : {imp : Type u} → [inst : d.Class imp] → imp → β)
-    (h : ∀ (imp imp': Type u) (inst : d.Class imp) (inst' : d.Class imp') (x : imp) (x' : imp'),
-    d.equiv inst x inst' x' → f (inst := inst) x = f (inst := inst') x') :
-    Data d → β :=
-  Quotient.lift (fun x : Imp d.Class => f (inst := x.inst) x.value) <| by
+def lift (spec : Spec.{u, v}) {β : Type w}
+    (f : {imp : Type u} → (inst : spec.Class imp) → imp → β)
+    (h : ∀ (imp imp': Type u) (inst : spec.Class imp) (inst' : spec.Class imp') (x : imp) (x' : imp'),
+    spec.equiv inst x inst' x' → f (inst := inst) x = f (inst := inst') x') :
+    Data spec → β :=
+  Quotient.lift (fun x : Imp spec.Class => f (inst := x.inst) x.value) <| by
     intro x x'
     simp only [HasEquiv.Equiv, Setoid.r]
     apply h
 
-structure lift.Precondition (d : Def.{u, v}) {β : Type w}
-    (f : {imp : Type u} → (inst : d.Class imp) → imp → β) : Prop where
-  f_equiv {imp imp': Type u} (inst : d.Class imp) (inst' : d.Class imp') (x : imp) (x' : imp') :
-    d.equiv inst x inst' x' → f inst x = f inst' x'
+structure lift'.Precondition (spec : Spec.{u, v}) {β : {imp : Type u} → spec.Class imp → imp → Type w}
+    (f : {imp : Type u} → (inst : spec.Class imp) → (x : imp) → β inst x) : Prop where
+  β_equiv {imp imp': Type u} (inst : spec.Class imp) (inst' : spec.Class imp')
+    (x : imp) (x' : imp') :
+    spec.equiv inst x inst' x' → β inst x = β inst' x'
+  f_equiv {imp imp': Type u} (inst : spec.Class imp) (inst' : spec.Class imp')
+    (x : imp) (x' : imp') (h : spec.equiv inst x inst' x'):
+    HEq (f inst x)  (f inst' x')
 
-
-def lift (d : Def.{u, v}) {β : {imp : Type u} → imp → Type w}
-    (f : {imp : Type u} → (inst : d.Class imp) → (x : imp) → β x)
-    (h : lift.Precondition d f) :
-    (x : Data d) → β x.value :=
-  Quotient.lift (fun x : Imp d.Class => f x.inst x.value) <| by
+def lift' (spec : Spec.{u, v}) {β : {imp : Type u} → spec.Class imp → imp → Type w}
+    (f : {imp : Type u} → (inst : spec.Class imp) → (x : imp) → β inst x)
+    (h : lift'.Precondition spec f) (q : Data spec) :=
+  let β' := Quotient.lift (fun x : Imp spec.Class => β x.inst x.value) <| by
     intro x x'
     simp only [HasEquiv.Equiv, Setoid.r]
-    apply h.f_equiv
+    apply h.β_equiv
+  Quotient.hrecOn q (motive := β') (fun x : Imp spec.Class => f x.inst x.value) <| by
+    simp only [HasEquiv.Equiv, Setoid.r]
+    intro x x' x_equiv
+    exact h.f_equiv x.inst x'.inst x.value x'.value x_equiv
 
 end Data
 
@@ -108,9 +114,7 @@ structure equivOut {α : Type u} {L : Type v} (inst : FiniteListLikeClass α L) 
     {L' : Type v} (inst' : FiniteListLikeClass α L') (as' : L') : Prop where
   intro ::
   isNil_eq : inst.isNil as ↔ inst'.isNil as'
-  head_eq (not_nil : _) : inst.head as not_nil = inst'.head as' (by
-    apply not_iff_not.mpr isNil_eq |>.mp <| not_nil
-    done)
+  head_heq : HEq (inst.head as) (inst'.head as')
 
 namespace equivOut
 
@@ -122,15 +126,14 @@ def not_isNil_eq {α : Type u} {L : Type v} {inst : FiniteListLikeClass α L} {a
 theorem is_refl {α : Type u} {L : Type v} (inst : FiniteListLikeClass α L) (as : L) :
     equivOut inst as inst as := by
   apply equivOut.intro
-  all_goals simp only [implies_true]
+  all_goals simp only [heq_eq_eq]
 
 theorem is_symm {α : Type u} {L : Type v} (inst : FiniteListLikeClass α L) (as : L)
     {L' : Type v} (inst' : FiniteListLikeClass α L') (as' : L')
     (h : equivOut inst as inst' as') : equivOut inst' as' inst as := by
   apply equivOut.intro
-  · intro not_nil'
-    simp only [h.head_eq <| h.not_isNil_eq.mpr not_nil']
-  · simp only [h.isNil_eq]
+  · simp only [h.isNil_eq.symm]
+  · simp only [h.head_heq.symm]
 
 theorem is_trans {α : Type u} {L₁ : Type v} (inst₁ : FiniteListLikeClass α L₁) (as₁ : L₁)
     {L₂ : Type v} (inst₂ : FiniteListLikeClass α L₂) (as₂ : L₂)
@@ -138,9 +141,8 @@ theorem is_trans {α : Type u} {L₁ : Type v} (inst₁ : FiniteListLikeClass α
     (h : equivOut inst₁ as₁ inst₂ as₂) (h' : equivOut inst₂ as₂ inst₃ as₃) :
     equivOut inst₁ as₁ inst₃ as₃ := by
   apply equivOut.intro
-  · intro not_nil₁
-    simp only [h.head_eq not_nil₁, h'.head_eq <| h.not_isNil_eq.mp not_nil₁]
-  · simp only [h.isNil_eq, h'.isNil_eq]
+  · simp only [h.isNil_eq.trans h'.isNil_eq]
+  · simp only [h.head_heq.trans h'.head_heq]
 
 end equivOut
 
@@ -148,7 +150,7 @@ def equiv {α : Type u} {L : Type v} (inst : FiniteListLikeClass α L) (as : L)
     {L' : Type v} (inst' : FiniteListLikeClass α L') (as' : L') : Prop :=
   ∀ (n : ℕ), equivOut inst (inst.tail^[n] as) inst' (inst'.tail^[n] as')
 
-def Def (α : Type u): Data.Def where
+def Spec (α : Type u): Data.Spec where
   Class := FiniteListLikeClass α
   equiv := equiv
   refl inst as := by
@@ -170,14 +172,13 @@ def Def (α : Type u): Data.Def where
 
 end FiniteListLikeClass
 
-def FiniteListLike (α : Type u) := Data (FiniteListLikeClass.Def α)
+def FiniteListLike (α : Type u) := Data (FiniteListLikeClass.Spec α)
 
 namespace FiniteListLike
 
-def isNil {α : Type u} := Data.lift (FiniteListLikeClass.Def α) (·.isNil) <| by
-  constructor
-  unfold Data.Def.equiv
-  unfold FiniteListLikeClass.Def
+def isNil {α : Type u} := Data.lift (FiniteListLikeClass.Spec α) (·.isNil) <| by
+  unfold Data.Spec.equiv
+  unfold FiniteListLikeClass.Spec
   unfold FiniteListLikeClass.equiv
   simp only [eq_iff_iff]
   intro _ _ inst inst' x x' h
@@ -185,14 +186,21 @@ def isNil {α : Type u} := Data.lift (FiniteListLikeClass.Def α) (·.isNil) <| 
   simp only [Function.iterate_zero, id_eq] at this
   exact this.isNil_eq
 
-def head {α : Type u} := Data.lift (FiniteListLikeClass.Def α) (·.head) <| by
-  constructor
-  unfold Data.Def.equiv
-  unfold FiniteListLikeClass.Def
-  unfold FiniteListLikeClass.equiv
-  simp only
-  intro _ _ inst inst' x x' h
 
+def head {α : Type u} := Data.lift' (FiniteListLikeClass.Spec α) (·.head) <| by
+  constructor
+  · unfold Data.Spec.equiv
+    unfold FiniteListLikeClass.Spec
+    unfold FiniteListLikeClass.equiv
+    simp only
+    intro _ _ inst inst' x x' h
+    have := h 0
+    simp only [Function.iterate_zero, id_eq] at this
+    simp only [this.isNil_eq]
+  · intro _ _ inst inst' x x' h
+    have h0 := h 0
+    simp only [Function.iterate_zero, id_eq] at h0
+    simp only [h0.isNil_eq, h0.head_heq]
 
 end FiniteListLike
 
