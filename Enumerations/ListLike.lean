@@ -37,7 +37,7 @@ structure Imp (Class : Type u → Type v) : Type (max (u + 1) v) where
   [inst : Class imp]
   value : imp
 
-instance setoid (spec : Spec) : Setoid (Imp spec.Class) where
+instance instSetoid (spec : Spec) : Setoid (Imp spec.Class) where
   r (x x' : Imp spec.Class) := spec.equiv x.inst x.value x'.inst x'.value
   iseqv := by
     constructor
@@ -52,7 +52,7 @@ end Data
 
 def Data (spec : Data.Spec.{u, v}) :
     Type (max (u + 1) v) :=
-  Quotient (Data.setoid spec)
+  Quotient (Data.instSetoid spec)
 
 namespace Data
 
@@ -106,10 +106,6 @@ class FiniteListLikeClass (α : Type u) (L : Type v) extends ListLikeClass α L 
 
 namespace FiniteListLikeClass
 
-
-
-
-
 structure equivOut {α : Type u} {L : Type v} (inst : FiniteListLikeClass α L) (as : L)
     {L' : Type v} (inst' : FiniteListLikeClass α L') (as' : L') : Prop where
   intro ::
@@ -118,7 +114,7 @@ structure equivOut {α : Type u} {L : Type v} (inst : FiniteListLikeClass α L) 
 
 namespace equivOut
 
-def not_isNil_eq {α : Type u} {L : Type v} {inst : FiniteListLikeClass α L} {as : L}
+theorem not_isNil_eq {α : Type u} {L : Type v} {inst : FiniteListLikeClass α L} {as : L}
     {L' : Type v} {inst' : FiniteListLikeClass α L'} {as' : L'} (h : equivOut inst as inst' as') :
     ¬ inst.isNil as ↔ ¬ inst'.isNil as' := by
   apply not_iff_not.mpr h.isNil_eq
@@ -194,13 +190,13 @@ def head {α : Type u} := Data.lift' (FiniteListLikeClass.Spec α) (·.head) <| 
     unfold FiniteListLikeClass.equiv
     simp only
     intro _ _ inst inst' x x' h
-    have := h 0
-    simp only [Function.iterate_zero, id_eq] at this
-    simp only [this.isNil_eq]
+    have h0 := h 0
+    simp only [Function.iterate_zero, id_eq] at h0
+    simp only [h0.isNil_eq]
   · intro _ _ inst inst' x x' h
     have h0 := h 0
     simp only [Function.iterate_zero, id_eq] at h0
-    simp only [h0.isNil_eq, h0.head_heq]
+    simp only [h0.head_heq]
 
 end FiniteListLike
 

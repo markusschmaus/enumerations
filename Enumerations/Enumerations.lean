@@ -1,15 +1,15 @@
-import Enumerations.MonadContainer
+import Enumerations.ContainerMonad
 import Enumerations.Predicate
 
 universe u v
 
-structure Enumerations.Property (M : Type u → Type v) [MonadContainer M] [LawfulMonadContainer M]
+structure Enumerations.Property (M : Type u → Type v) [ContainerMonad M] [LawfulContainerMonad M]
     {α : Type u} (predicate : α → Prop) (elems : M α) : Prop where
   intro ::
   complete (a : α) : a ∈ elems ↔ predicate a
 
 
-structure Enumerations (M : Type u → Type v) [MonadContainer M] [LawfulMonadContainer M]
+structure Enumerations (M : Type u → Type v) [ContainerMonad M] [LawfulContainerMonad M]
     (α : Type u) : Type (max u v) where
   predicate : α → Prop
   elems : M α
@@ -17,7 +17,7 @@ structure Enumerations (M : Type u → Type v) [MonadContainer M] [LawfulMonadCo
 
 namespace Enumerations
 
-variable {M : Type u → Type v} [MonadContainer M] [LawfulMonadContainer M]
+variable {M : Type u → Type v} [ContainerMonad M] [LawfulContainerMonad M]
 
 def complete (e : Enumerations M α) (a : α) := e.property.complete a
 
@@ -29,9 +29,9 @@ def map (f : α → β) (enum : Enumerations M α) : Enumerations M β :=
       constructor
       intro b
       simp only [Predicate.map_def, enum.complete]
-      simp only [LawfulMonadContainer.mem_map, elem_iff_predicate]
+      simp only [LawfulContainerMonad.mem_map, elem_iff_predicate]
 
-instance functor : Functor (Enumerations M) where
+instance instFunctor : Functor (Enumerations M) where
   map := map
 
 def map_def (f : α → β) (enum : Enumerations M α) := by
@@ -47,7 +47,7 @@ theorem map_elems (f : α → β) (enum : Enumerations M α) :
     (f <$> enum).elems = (f <$> enum.elems : M β) := by
   simp only [map_def]
 
-instance functor.lawful : LawfulFunctor (Enumerations M) where
+instance instFunctor.instLawful : LawfulFunctor (Enumerations M) where
   map_const := by
     intro α β
     rfl
@@ -61,15 +61,15 @@ instance functor.lawful : LawfulFunctor (Enumerations M) where
 def pure (a : α) : Enumerations M α :=
   Enumerations.mk (Pure.pure a : Predicate α) (Pure.pure a) <| by
   constructor
-  simp only [LawfulMonadContainer.mem_pure, Predicate.pure_apply, implies_true]
+  simp only [LawfulContainerMonad.mem_pure, Predicate.pure_apply, implies_true]
 
 def bind (enum : Enumerations M α) (f : α → Enumerations M β) : Enumerations M β :=
   Enumerations.mk (enum.predicate >>= fun a => (f a).predicate : Predicate β) (enum.elems >>= fun a => (f a).elems) <| by
     constructor
     intro b
-    simp only [LawfulMonadContainer.mem_bind, elem_iff_predicate, Predicate.bind_def]
+    simp only [LawfulContainerMonad.mem_bind, elem_iff_predicate, Predicate.bind_def]
 
-instance monad : Monad (Enumerations M) where
+instance instMonad : Monad (Enumerations M) where
   pure := pure
   bind := bind
 
@@ -104,7 +104,7 @@ theorem bind_elems (enum : Enumerations M α) (f : α → Enumerations M β) :
     (enum >>= f).elems = (enum.elems >>= fun a => (f a).elems : M β) := by
   simp only [bind_def]
 
-instance monad.lawful : LawfulMonad (Enumerations M) := by
+instance instMonad.instLawful : LawfulMonad (Enumerations M) := by
   apply LawfulMonad.mk'
   · intros
     simp only [map_def, id_map]
